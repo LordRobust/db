@@ -23,8 +23,6 @@
 
 package co.aikar.db;
 
-import com.empireminecraft.util.Log;
-
 import java.sql.SQLException;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -52,7 +50,7 @@ class AsyncDbQueue implements Runnable {
             dbStatement = new DbStatement();
         } catch (Exception e) {
             lock.unlock();
-            Log.exception("Exception getting DbStatement in AsyncDbQueue", e);
+            e.printStackTrace();
             return;
         }
 

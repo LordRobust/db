@@ -23,14 +23,8 @@
 
 package co.aikar.db;
 
-import co.aikar.timings.lib.MCTiming;
-import co.aikar.timings.lib.TimingManager;
-import com.empireminecraft.util.Log;
-import com.empireminecraft.util.SneakyThrow;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import org.bukkit.Bukkit;
-import org.bukkit.plugin.Plugin;
 import org.intellij.lang.annotations.Language;
 
 import java.sql.Connection;
@@ -42,9 +36,6 @@ import java.util.function.Function;
 
 public final class DB {
     private static HikariDataSource pooledDataSource;
-    private static TimingManager timingsManager;
-    private static MCTiming sqlTiming;
-    private static Plugin plugin;
     private DB() {}
 
     /**
@@ -59,23 +50,19 @@ public final class DB {
     /**
      * Called in onEnable, initializes the pool and configures it and opens the first connection to spawn the pool.
      */
-    public static void initialize(Plugin plugin, String user, String pass, String db, String hostAndPort) {
+    public static void initialize(String user, String pass, String db, String hostAndPort) {
         if (hostAndPort == null) {
             hostAndPort = "localhost:3306";
         }
-        initialize(plugin, user, pass, "mysql://" + hostAndPort + "/" + db);
+        initialize(user, pass, "mysql://" + hostAndPort + "/" + db);
     }
-    public static void initialize(Plugin plugin, String user, String pass, String jdbcUrl) {
+
+    public static void initialize(String user, String pass, String jdbcUrl) {
         try {
-            DB.plugin = plugin;
-            timingsManager = TimingManager.of(plugin);
-            sqlTiming = timingsManager.of("Database");
             HikariConfig config = new HikariConfig();
 
-            config.setPoolName(plugin.getDescription().getName() + " DB");
+            config.setPoolName("DB Pool");
 
-
-            plugin.getLogger().info("Connecting to Database: " + jdbcUrl);
             config.setDataSourceClassName("com.mysql.jdbc.jdbc2.optional.MysqlDataSource");
             config.addDataSourceProperty("url", "jdbc:" + jdbcUrl);
             config.addDataSourceProperty("user", user);
@@ -100,11 +87,10 @@ public final class DB {
             pooledDataSource.setTransactionIsolation("TRANSACTION_READ_COMMITTED");
 
             // TODO: Move to executor
-            Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, new AsyncDbQueue(), 0, 1);
+            //Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, new AsyncDbQueue(), 0, 1);
         } catch (Exception ex) {
             pooledDataSource = null;
-            Log.exception("DB: Error Creating Database Pool", ex);
-            Bukkit.getServer().shutdown();
+            ex.printStackTrace();
         }
     }
 
@@ -131,13 +117,13 @@ public final class DB {
      */
     public static CompletableFuture<DbStatement> queryAsync(@Language("MySQL") String query) throws SQLException {
         CompletableFuture<DbStatement> future = new CompletableFuture<>();
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        /*Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 future.complete(new DbStatement().query(query));
             } catch (SQLException e) {
                 future.completeExceptionally(e);
             }
-        });
+        });*/
         return future;
     }
 
@@ -368,7 +354,7 @@ public final class DB {
     }
 
     public static void createTransactionAsync(TransactionCallback run, Runnable onSuccess, Runnable onFail) {
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        /*Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             if (!createTransaction(run)) {
                 if (onFail != null) {
                     onFail.run();
@@ -376,7 +362,7 @@ public final class DB {
             } else if (onSuccess != null) {
                 onSuccess.run();
             }
-        });
+        });*/
     }
 
     public static boolean createTransaction(TransactionCallback run) {
@@ -392,17 +378,12 @@ public final class DB {
                 }
             } catch (Exception e) {
                 stm.rollback();
-                Log.exception(e);
+                e.printStackTrace();
             }
         } catch (SQLException e) {
-            Log.exception(e);
+            e.printStackTrace();
         }
         return false;
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    public static MCTiming timings(String name) {
-        return timingsManager.ofStart(name, sqlTiming);
     }
 
     public interface TransactionCallback extends Function<DbStatement, Boolean> {
@@ -411,7 +392,7 @@ public final class DB {
             try {
                 return this.runTransaction(dbStatement);
             } catch (Exception e)  {
-                SneakyThrow.sneaky(e);
+                e.printStackTrace();
             }
             return false;
         }

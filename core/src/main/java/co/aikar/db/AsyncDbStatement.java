@@ -23,7 +23,6 @@
 
 package co.aikar.db;
 
-import com.empireminecraft.util.Log;
 import org.intellij.lang.annotations.Language;
 
 import java.sql.SQLException;
@@ -76,7 +75,7 @@ public abstract class AsyncDbStatement {
      * @param e
      */
     public void onError(SQLException e) {
-        Log.exception("Exception in AsyncDbStatement" + query, e);
+        e.printStackTrace();
     }
 
     public void process(DbStatement stm) throws SQLException {
