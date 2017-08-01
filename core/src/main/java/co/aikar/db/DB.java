@@ -31,10 +31,12 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.*;
 import java.util.function.Function;
 
 public final class DB {
+    private static ThreadPoolExecutor executor;
+    private static ScheduledExecutorService scheduledExecutor;
     private static HikariDataSource pooledDataSource;
     private DB() {}
 
@@ -86,8 +88,19 @@ public final class DB {
             pooledDataSource = new HikariDataSource(config);
             pooledDataSource.setTransactionIsolation("TRANSACTION_READ_COMMITTED");
 
-            // TODO: Move to executor
-            //Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, new AsyncDbQueue(), 0, 1);
+            executor = (ThreadPoolExecutor) Executors.newCachedThreadPool(r -> {
+                final Thread thread = new Thread(r);
+                thread.setName("DbAsyncQueue Thread Pool");
+                return thread;
+            });
+
+            scheduledExecutor = Executors.newScheduledThreadPool(5, r -> {
+                final Thread thread = new Thread(r);
+                thread.setName("DbAsyncQueue Thread Scheduler");
+                return thread;
+            });
+
+            scheduledExecutor.scheduleAtFixedRate(new AsyncDbQueue(), 0, 50, TimeUnit.MILLISECONDS);
         } catch (Exception ex) {
             pooledDataSource = null;
             ex.printStackTrace();
@@ -117,13 +130,13 @@ public final class DB {
      */
     public static CompletableFuture<DbStatement> queryAsync(@Language("MySQL") String query) throws SQLException {
         CompletableFuture<DbStatement> future = new CompletableFuture<>();
-        /*Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        executor.submit(() -> {
             try {
                 future.complete(new DbStatement().query(query));
             } catch (SQLException e) {
                 future.completeExceptionally(e);
             }
-        });*/
+        });
         return future;
     }
 
@@ -354,7 +367,7 @@ public final class DB {
     }
 
     public static void createTransactionAsync(TransactionCallback run, Runnable onSuccess, Runnable onFail) {
-        /*Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        executor.submit(() -> {
             if (!createTransaction(run)) {
                 if (onFail != null) {
                     onFail.run();
@@ -362,7 +375,7 @@ public final class DB {
             } else if (onSuccess != null) {
                 onSuccess.run();
             }
-        });*/
+        });
     }
 
     public static boolean createTransaction(TransactionCallback run) {
